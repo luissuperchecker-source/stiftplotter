@@ -123,6 +123,7 @@ details ol { padding-left: 18px; margin: 8px 0 0; }
   </details>
   <div id="handInfo" class="hint"></div>
   <div id="handGlyphs" class="glyphs"></div>
+  <label class="check"><input type="checkbox" id="handVerbinden"> Buchstaben verbinden (Schreibschrift)</label>
 
   <h2>Umwandlung</h2>
   <div class="seg" id="modus">
@@ -208,7 +209,7 @@ const S = {
   breite: 100, x: 30, y: 30,
   bettB: 210, bettT: 210, rand: 0, offX: 0, offY: 0,
   grauAn: false, grauBis: 230, hand: 0,
-  text: "", textFont: "Arial", textH: 10,
+  text: "", textFont: "Arial", textH: 10, handVerbinden: false,
   hub: 3, tiefe: -10, tempo: 1500, fahrt: 3000,
   showImg: true, showTravel: false,
 };
@@ -507,11 +508,32 @@ async function handAusSpeicher() {
   } catch (e) { hand = null; }
 }
 
+let handPunkte = {};   // zeichen -> { ein:[x,y], aus:[x,y], dicke } für Schreibschrift-Verbindungen
 async function handBilderLaden() {
-  handBilder = {};
+  handBilder = {}; handPunkte = {};
   await Promise.all(Object.entries(hand.glyphs).map(([z, g]) => new Promise(res => {
-    const im = new Image(); im.onload = im.onerror = res; im.src = g.src; handBilder[z] = im;
+    const im = new Image();
+    im.onload = () => { try { handPunkte[z] = glyphPunkte(im, g); } catch (e) {} res(); };
+    im.onerror = res; im.src = g.src; handBilder[z] = im;
   })));
+}
+
+// Wo fängt der Buchstabe an / hört er auf (tiefster Punkt ganz links / ganz rechts) und wie dick ist der Strich?
+function glyphPunkte(im, gl) {
+  const c = document.createElement("canvas"); c.width = gl.w; c.height = gl.h;
+  const g = c.getContext("2d"); g.drawImage(im, 0, 0, gl.w, gl.h);
+  const a = g.getImageData(0, 0, gl.w, gl.h).data, ink = (x, y) => a[4 * (y * gl.w + x) + 3] > 110;
+  const spalte = x => { let best = -1; for (let y = 0; y < gl.h; y++) if (ink(x, y)) best = y; return best; };
+  let ein = null, aus = null;
+  for (let x = 0; x < gl.w && !ein; x++) { const y = spalte(x); if (y >= 0) ein = [x, y]; }
+  for (let x = gl.w - 1; x >= 0 && !aus; x--) { const y = spalte(x); if (y >= 0) aus = [x, y]; }
+  const laeufe = [];
+  for (let y = 0; y < gl.h; y++) for (let x = 0; x < gl.w; ) {
+    if (!ink(x, y)) { x++; continue; }
+    const s = x; while (x < gl.w && ink(x, y)) x++;
+    laeufe.push(x - s);
+  }
+  return { ein: ein || [0, gl.h], aus: aus || [gl.w, gl.h], dicke: Math.max(1.5, median(laeufe) || 2) };
 }
 
 const median = a => { if (!a.length) return NaN; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
@@ -523,26 +545,44 @@ function handGlyph(z) {   // Zeichen holen, notfalls Groß-/Kleinbuchstabe
 }
 const handAbstand = () => hand.xh * 0.18, handLeer = () => hand.xh * 0.75;
 
-function handBreite(zeile) {
-  let x = 0;
+// Eine Zeile anordnen: wo kommt welcher Buchstabe hin, wo gibt es Verbindungsbögen (Schreibschrift)
+function handLayout(zeile) {
+  const teile = [], boegen = [], fehlt = new Set();
+  let x = 0, vorher = null;   // vorher = Endpunkt des letzten Buchstabens (nur innerhalb eines Wortes)
   for (const z of zeile) {
-    if (z === " ") { x += handLeer(); continue; }
-    const [g] = handGlyph(z);
-    x += g ? g.w + handAbstand() : handLeer() * 0.6;
+    if (z === " ") { x += handLeer(); vorher = null; continue; }
+    const [gl, im] = handGlyph(z);
+    if (!gl) { fehlt.add(z); x += handLeer() * 0.6; vorher = null; continue; }
+    const pk = handPunkte[hand.glyphs[z] ? z : (hand.glyphs[z.toLowerCase()] ? z.toLowerCase() : z.toUpperCase())];
+    const verbinden = S.handVerbinden && vorher && pk && /[\p{L}]/u.test(z);
+    let gx = x;
+    if (verbinden) {
+      gx = vorher.x + hand.xh * 0.28 - pk.ein[0];   // kurzer Bogen bis zum Anfang des nächsten Buchstabens
+      boegen.push({ von: [vorher.x, vorher.y], nach: [gx + pk.ein[0], gl.top + pk.ein[1]], dicke: (vorher.dicke + pk.dicke) / 2 });
+    }
+    teile.push({ im, x: gx, top: gl.top, w: gl.w, h: gl.h });
+    x = gx + gl.w + (S.handVerbinden ? hand.xh * 0.1 : handAbstand());
+    vorher = pk && /[\p{L}]/u.test(z) ? { x: gx + pk.aus[0], y: gl.top + pk.aus[1], dicke: pk.dicke } : null;
   }
-  return x;
+  return { teile, boegen, fehlt, breite: x };
 }
 
+const handBreite = zeile => handLayout(zeile).breite;
+
 function handZeichnen(g, zeile, x, grundlinie) {   // eine Zeile zeichnen, gibt fehlende Zeichen zurück
-  const fehlt = new Set();
-  for (const z of zeile) {
-    if (z === " ") { x += handLeer(); continue; }
-    const [gl, im] = handGlyph(z);
-    if (!gl) { fehlt.add(z); x += handLeer() * 0.6; continue; }
-    g.drawImage(im, x, grundlinie + gl.top, gl.w, gl.h);
-    x += gl.w + handAbstand();
+  const L = handLayout(zeile);
+  for (const t of L.teile) g.drawImage(t.im, x + t.x, grundlinie + t.top, t.w, t.h);
+  g.save(); g.strokeStyle = "#000"; g.lineCap = "round";
+  for (const b of L.boegen) {
+    const [x1, y1] = b.von, [x2, y2] = b.nach;
+    g.lineWidth = b.dicke;
+    g.beginPath(); g.moveTo(x + x1, grundlinie + y1);
+    // leicht durchhängender Bogen wie beim Schreiben
+    g.quadraticCurveTo(x + (x1 + x2) / 2, grundlinie + Math.max(y1, y2) + hand.xh * 0.12, x + x2, grundlinie + y2);
+    g.stroke();
   }
-  return fehlt;
+  g.restore();
+  return L.fehlt;
 }
 
 function handTextBauen(t) {
@@ -740,16 +780,116 @@ function handAuswerten(img) {
   return { zeilen: ergebnis, hMed };
 }
 
+// Zusammenhängende Teile (Schreibschrift) so aufteilen, dass es n Zeichen werden.
+// Breite Teile bekommen mehr Buchstaben; geschnitten wird an den dünnsten Stellen (Verbindungsstriche).
+// Typische Breite eines Zeichens (aus einer Schreibschrift gemessen), damit "m" breiter geschätzt wird als "i"
+const breitenMesser = document.createElement("canvas").getContext("2d");
+function typBreite(z) {
+  breitenMesser.font = '100px "Segoe Script", "Comic Sans MS", sans-serif';
+  return Math.max(20, breitenMesser.measureText(z).width);
+}
+
+function handTeilen(glyphen, n, zeichen) {
+  const gesamt = glyphen.reduce((s, g) => s + g.w, 0);
+  const tb = zeichen.map(typBreite), tbSumme = tb.reduce((a, b) => a + b, 0);
+  // Beste Verteilung suchen: jeder Teil bekommt so viele Zeichen, dass deren typische Breite zu seiner Breite passt
+  const G = glyphen.length, sk = gesamt / tbSumme;
+  const pre = [0]; for (const b of tb) pre.push(pre[pre.length - 1] + b);
+  const dp = Array.from({ length: G + 1 }, () => new Float64Array(n + 1).fill(Infinity));
+  const von = Array.from({ length: G + 1 }, () => new Int32Array(n + 1));
+  dp[0][0] = 0;
+  for (let i = 1; i <= G; i++) for (let j = i; j <= n - (G - i); j++) for (let a = i - 1; a < j; a++) {
+    if (dp[i - 1][a] === Infinity) continue;
+    const erwartet = (pre[j] - pre[a]) * sk, f = Math.log(glyphen[i - 1].w / erwartet);
+    const c = dp[i - 1][a] + f * f;
+    if (c < dp[i][j]) { dp[i][j] = c; von[i][j] = a; }
+  }
+  let anz = glyphen.map(() => 0);
+  if (dp[G][n] < Infinity) {
+    for (let i = G, j = n; i > 0; i--) { const a = von[i][j]; anz[i - 1] = j - a; j = a; }
+  }
+  if (anz.some(a => a === 0)) {   // Notlösung: nur nach Breite verteilen
+    const soll = glyphen.map(g => g.w / gesamt * n);
+    anz = soll.map(v => Math.max(1, Math.round(v)));
+    let summe = anz.reduce((a, b) => a + b, 0);
+    while (summe > n) {
+      let best = -1, bd = -Infinity;
+      anz.forEach((a, i) => { if (a > 1 && a - soll[i] > bd) { bd = a - soll[i]; best = i; } });
+      if (best < 0) break; anz[best]--; summe--;
+    }
+    while (summe < n) {
+      let best = 0, bd = -Infinity;
+      anz.forEach((a, i) => { if (soll[i] - a > bd) { bd = soll[i] - a; best = i; } });
+      anz[best]++; summe++;
+    }
+  }
+  const out = []; let j = 0;
+  glyphen.forEach((g, i) => {
+    const teil = tb.slice(j, j + anz[i]); j += anz[i];
+    if (anz[i] <= 1) out.push(g); else out.push(...glyphSchneiden(g, anz[i], teil));
+  });
+  return out;
+}
+
+function glyphSchneiden(g, k, gewichte) {
+  const a = g.cv.getContext("2d").getImageData(0, 0, g.w, g.h).data;
+  const proj = new Float32Array(g.w);
+  for (let x = 0; x < g.w; x++) for (let y = 0; y < g.h; y++) if (a[4 * (y * g.w + x) + 3] > 110) proj[x]++;
+  // etwas glätten, damit nicht mitten in einen senkrechten Strich geschnitten wird
+  const pg = proj.map((_, x) => (proj[Math.max(0, x - 1)] + proj[x] + proj[Math.min(g.w - 1, x + 1)]) / 3);
+  const gw = gewichte && gewichte.length === k ? gewichte : Array(k).fill(1);
+  const strafe = 2 * (median([...pg].filter(v => v > 0)) || 4);
+  const schnitte = [0];
+  for (let j = 1; j < k; j++) {
+    // Rest ab dem letzten Schnitt im Verhältnis der typischen Breiten aufteilen
+    const rest = gw.slice(j - 1).reduce((a, b) => a + b, 0);
+    const breite = (g.w - schnitte[j - 1]) * gw[j - 1] / rest;
+    const mitte = schnitte[j - 1] + breite;
+    const von = Math.max(schnitte[j - 1] + 2, Math.round(mitte - breite * 0.4)), bis = Math.min(g.w - 2, Math.round(mitte + breite * 0.4));
+    let best = Math.round(mitte), bv = Infinity;
+    for (let x = von; x <= bis; x++) {
+      const v = pg[x] + Math.abs(x - mitte) / breite * strafe;   // dünn + nah an der erwarteten Stelle
+      if (v < bv) { bv = v; best = x; }
+    }
+    schnitte.push(Math.min(g.w - 1, Math.max(schnitte[j - 1] + 1, best)));
+  }
+  schnitte.push(g.w);
+  const teile = [];
+  for (let j = 0; j < k; j++) {
+    const xa = schnitte[j], xb = Math.max(xa + 1, schnitte[j + 1]);
+    let y0 = g.h, y1 = -1;
+    for (let y = 0; y < g.h; y++) for (let x = xa; x < xb; x++) if (a[4 * (y * g.w + x) + 3] > 110) { if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (y1 < 0) { y0 = 0; y1 = 0; }
+    const w = xb - xa, h = y1 - y0 + 1, cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(g.cv, xa, y0, w, h, 0, 0, w, h);
+    teile.push({ cv, x0: g.x0 + xa, y0: g.y0 + y0, y1: g.y0 + y1, w, h });
+  }
+  return teile;
+}
+
+$("handVerbinden").checked = S.handVerbinden;
+$("handVerbinden").onchange = e => {
+  S.handVerbinden = e.target.checked; speichern();
+  if (hand) { schriftenZeigen(); if (S.textFont === HAND) textBauen(); }
+};
+
 // Ausgeschnittene Zeichen den Zeichen der Vorlage zuordnen und als Schrift speichern
 function handZuordnen() {
   if (!handRoh) return;
-  const vorlage = handVorlage.split("\n").map(z => z.trim().split(/\s+/).filter(Boolean).map(t => t[0])).filter(z => z.length);
+  const vorlage = handVorlage.split("\n").map(z => [...z.replace(/\s+/g, "")]).filter(z => z.length);
   const zuord = [], hinweise = [];
   const n = Math.min(vorlage.length, handRoh.zeilen.length);
   if (handRoh.zeilen.length !== vorlage.length)
     hinweise.push(`Im Foto ${handRoh.zeilen.length} Zeilen gefunden, die Vorlage hat ${vorlage.length}.`);
+  let getrennt = 0;
   for (let i = 0; i < n; i++) {
-    const v = vorlage[i], gl = handRoh.zeilen[i];
+    const v = vorlage[i];
+    let gl = handRoh.zeilen[i];
+    if (gl.length < v.length) {   // zusammenhängende Schreibschrift: Teile an dünnen Stellen trennen
+      gl = handTeilen(gl, v.length, v);
+      getrennt++;
+    }
     if (v.length !== gl.length) hinweise.push(`Zeile ${i + 1}: ${gl.length} Zeichen gefunden statt ${v.length}.`);
     const paare = [];
     for (let j = 0; j < Math.min(v.length, gl.length); j++) paare.push({ z: v[j], g: gl[j] });
@@ -771,6 +911,7 @@ function handZuordnen() {
     glyphs[p.z] = { src: cv.toDataURL("image/png"), w, h, top: (p.g.y0 - p.grund) * sk };
   }
   hand = { xh: xh * sk, cap: cap * sk, glyphs };
+  if (getrennt) { S.handVerbinden = true; $("handVerbinden").checked = true; speichern(); }
   try { localStorage.setItem(HAND_SPEICHER, JSON.stringify(hand)); } catch (e) { hinweise.push("Konnte die Schrift nicht dauerhaft speichern (Speicher voll)."); }
   handBilderLaden().then(() => {
     handGlyphenZeigen();
@@ -786,7 +927,7 @@ function handZuordnen() {
 function handGlyphenZeigen() {
   const box = $("handGlyphs"); box.innerHTML = "";
   if (!hand) return;
-  const alle = handVorlage.split(/\s+/).filter(Boolean).map(t => t[0]);
+  const alle = [...handVorlage.replace(/\s+/g, "")];
   for (const z of alle) {
     const d = document.createElement("div"), gl = hand.glyphs[z];
     d.className = "glyph" + (gl ? "" : " fehlt");
