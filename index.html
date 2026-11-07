@@ -180,6 +180,7 @@ details ol { padding-left: 18px; margin: 8px 0 0; }
 
   <div class="stats" id="stats">Noch kein Bild geladen.</div>
   <button class="big" id="download" disabled>G-Code speichern</button>
+  <p class="hint">Am Handy landet die Datei im Ordner „Downloads“. Sie muss auf <b>.gcode</b> enden, sonst zeigt der Drucker sie nicht an.</p>
 
   <details>
     <summary>So malst du mit der Datei</summary>
@@ -1544,7 +1545,9 @@ function gcode() {
   return z.concat(striche(liste), fuss()).join("\n");
 }
 function speichereDatei(text, name) {
-  const blob = new Blob([text], { type: "text/plain" });
+  // "octet-stream" statt "text/plain": sonst hängen Handy-Browser ".txt" an und der Drucker zeigt die Datei nicht an.
+  // Windows-Zeilenenden (CRLF) mag die Drucker-Firmware am sichersten.
+  const blob = new Blob([text.replace(/\r?\n/g, "\r\n") + "\r\n"], { type: "application/octet-stream" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -1553,7 +1556,10 @@ function speichereDatei(text, name) {
 }
 $("download").onclick = () => {
   if (!bild || !passt()) return;
-  speichereDatei(gcode(), bild.name.replace(/[^\w\-]+/g, "_") + ".gcode");
+  // kurzer, einfacher Dateiname (nur a-z, 0-9, _), den jeder Drucker anzeigt
+  const name = bild.name.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 20) || "zeichnung";
+  speichereDatei(gcode(), name + ".gcode");
 };
 
 // ------------------------------------------------------------------ Kalibrierung
