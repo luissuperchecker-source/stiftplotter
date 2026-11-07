@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stiftplotter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="gfonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat&family=Dancing+Script&family=Pacifico&family=Indie+Flower&family=Permanent+Marker&family=Shadows+Into+Light&family=Amatic+SC&family=Satisfy&family=Great+Vibes&family=Lobster&family=Kalam&family=Patrick+Hand&family=Sacramento&family=Homemade+Apple&family=Rock+Salt&family=Bebas+Neue&family=Righteous&family=Special+Elite&family=Press+Start+2P&family=Orbitron&family=Creepster&family=Bangers&family=Fredoka&family=Playfair+Display&family=Cinzel&family=UnifrakturMaguntia&family=Black+Ops+One&family=Monoton&display=swap">
+<style>
+:root {
+  --bg: #f3f3f1; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+  --accent: #2f6fde; --accent-text: #ffffff; --bed: #fcfcfa; --grid: #ebebe7; --grid2: #d6d6d0;
+  --ink: #1d1d1f; --warn: #d33a2c; --travel: #e39b92; --ok: #2e8b57; --field: #f6f6f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #18181a; --panel: #222225; --text: #ececee; --muted: #9a9aa0; --line: #34343a;
+    --accent: #6b9cff; --accent-text: #0f1420; --bed: #2a2a2e; --grid: #333338; --grid2: #45454c;
+    --ink: #f4f4f4; --warn: #ff6b5b; --travel: #9a5048; --ok: #5fcf8f; --field: #2b2b30;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); display: flex; }
+aside { width: 330px; flex: none; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 14px 16px 24px; }
+main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+h1 { font-size: 18px; margin: 2px 0 12px; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; color: var(--muted); transition: .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); color: var(--text); }
+.drop b { color: var(--text); display: block; margin-bottom: 2px; word-break: break-all; }
+.row { margin: 10px 0; }
+.row label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+.row label span.v { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.row input[type=number] { width: 70px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--text); font: inherit; text-align: right; }
+.row input[type=range] { width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; border: 0; background: transparent; color: var(--text); padding: 7px 4px; font: inherit; font-size: 13px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent); color: var(--accent-text); }
+.btns { display: flex; gap: 6px; margin-top: 8px; }
+.btn { flex: 1; border: 1px solid var(--line); background: var(--field); color: var(--text); border-radius: 8px; padding: 7px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.big { width: 100%; margin-top: 14px; border: 0; background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 12px; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+.big:disabled { opacity: .4; cursor: not-allowed; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 8px 0; }
+.stats { font-size: 13px; background: var(--field); border-radius: 8px; padding: 10px 12px; margin-top: 14px; line-height: 1.6; }
+.stats .warn { color: var(--warn); font-weight: 600; }
+.stats .ok { color: var(--ok); font-weight: 600; }
+.toolbar { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.toolbar .check { margin: 0; }
+.toolbar .info { margin-left: auto; color: var(--muted); font-size: 12px; }
+#wrap { flex: 1; position: relative; min-height: 0; }
+canvas#bed { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#busy { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 20px; font-size: 13px; display: none; }
+ol.kal { padding-left: 18px; margin: 6px 0; font-size: 13px; }
+ol.kal li { margin-bottom: 8px; }
+ol.kal .btn { flex: none; margin: 2px 0 4px; }
+.mess { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; color: var(--muted); }
+.mess input { width: 70px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--text); font: inherit; text-align: right; }
+textarea { width: 100%; resize: vertical; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--text); font: inherit; font-size: 15px; }
+.fonts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 300px; overflow-y: auto; margin-top: 8px; padding: 2px; }
+.font { border: 1px solid var(--line); background: var(--field); color: var(--text); border-radius: 8px; padding: 6px 8px; text-align: left; cursor: pointer; min-width: 0; }
+.font:hover { border-color: var(--accent); }
+.font.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.font .p { display: block; font-size: 21px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.font .n { display: block; font: 11px system-ui, sans-serif; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+details { margin-top: 18px; font-size: 13px; }
+details summary { cursor: pointer; color: var(--muted); }
+details ol { padding-left: 18px; margin: 8px 0 0; }
+@media (max-width: 760px) {
+  /* Handy: Druckbett bleibt oben stehen, Einstellungen darunter scrollen */
+  html, body { height: auto; }
+  body { flex-direction: column; }
+  main { order: -1; position: sticky; top: 0; z-index: 5; height: 46vh; min-height: 260px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  aside { width: 100%; border-right: 0; overflow: visible; padding: 12px 16px 40px; }
+  .toolbar { gap: 10px; padding: 6px 12px; }
+  .toolbar .info { display: none; }
+  .row input[type=number], .mess input { font-size: 16px; }   /* verhindert Auto-Zoom auf dem iPhone */
+  textarea { font-size: 16px; }
+  .row input[type=range] { height: 26px; }
+  .fonts { max-height: 240px; }
+}
+</style>
+</head>
+<body>
+<aside>
+  <h1>✏️ Stiftplotter</h1>
+
+  <div class="drop" id="drop">
+    <b id="fname">Bild hier reinziehen</b>
+    oder klicken zum Auswählen (PNG, JPG, SVG)
+    <input type="file" id="file" accept="image/*,.svg" hidden>
+  </div>
+
+  <h2>Oder Text schreiben</h2>
+  <textarea id="text" rows="2" placeholder="Text eingeben … (Enter = neue Zeile)"></textarea>
+  <div id="r_textH"></div>
+  <div class="fonts" id="fonts"><span class="hint">Schriftarten werden geladen …</span></div>
+  <p class="hint">Auf eine Schrift klicken – der Text erscheint sofort im Bett. Tipp: Für Schrift ist „Ein Strich“ meist am schönsten.</p>
+
+  <h2>Umwandlung</h2>
+  <div class="seg" id="modus">
+    <button data-m="mitte" class="on" title="Jede Linie nur einmal, in der Mitte">Ein Strich</button>
+    <button data-m="umriss" title="Nur die Ränder der schwarzen Flächen">Umriss</button>
+    <button data-m="fuellen" title="Umriss + schwarze Flächen ausmalen">Ausmalen</button>
+  </div>
+  <p class="hint" id="modusHint"></p>
+  <div id="r_schwelle"></div>
+  <label class="check"><input type="checkbox" id="invert"> Farben umdrehen (helle Linien auf dunklem Grund)</label>
+  <label class="check"><input type="checkbox" id="grauAn"> Graue Flächen (Schatten) ausmalen</label>
+  <div id="r_grauBis"></div>
+  <div id="r_stift"></div>
+  <div id="r_minLen"></div>
+  <div id="r_hand"></div>
+  <p class="hint">0 = exakt wie eine Maschine. Höher = leicht wackelige Linien, die an den Enden etwas überstehen – wie von Hand gezeichnet.</p>
+
+  <h2>Größe &amp; Position</h2>
+  <div id="r_breite"></div>
+  <div id="r_x"></div>
+  <div id="r_y"></div>
+  <div class="btns">
+    <button class="btn" id="center">Zentrieren</button>
+    <button class="btn" id="maxsize">Maximale Größe</button>
+  </div>
+  <p class="hint">Tipp: Im Bett kannst du das Bild verschieben (Maus oder Finger) und vergrößern (Mausrad oder zwei Finger).</p>
+
+  <h2>Druckbett</h2>
+  <div id="r_bettB"></div>
+  <div id="r_bettT"></div>
+  <div id="r_rand"></div>
+
+  <h2>Kalibrierung</h2>
+  <p class="hint" style="margin-top:0">Damit die Zeichnung genau dort landet, wo sie im Programm liegt:</p>
+  <ol class="kal">
+    <li><button class="btn" id="kalDatei">Kalibrier-Datei speichern</button><br>
+        Auf SD-Karte kopieren und malen lassen. Der Drucker malt ein <b>Kreuz</b>.</li>
+    <li>Mit dem Lineal messen, wo die <b>Kreuz-Mitte</b> auf der Platte ist:
+      <div class="mess"><span>vom <b>linken</b> Plattenrand</span><span><input type="number" id="messX" step="0.5" placeholder="?"> mm</span></div>
+      <div class="mess"><span>vom <b>vorderen</b> Plattenrand</span><span><input type="number" id="messY" step="0.5" placeholder="?"> mm</span></div>
+    </li>
+    <li><button class="btn" id="kalOk">Übernehmen</button> <span id="kalInfo" class="hint"></span></li>
+  </ol>
+  <div id="r_offX"></div>
+  <div id="r_offY"></div>
+  <p class="hint">Der Versatz wird nur in den G-Code eingerechnet. Im Bett siehst du immer die echte Position auf der Platte.</p>
+
+  <h2>Stift &amp; Tempo</h2>
+  <div id="r_tiefe"></div>
+  <p class="hint">0 = genau die Höhe, auf der der Stift beim Start steht. Minus = tiefer (z. B. −10 = 1 cm tiefer). Vorsicht: Steht der Stift beim Start schon auf dem Papier, drückt er sonst zu fest.</p>
+  <div id="r_hub"></div>
+  <div id="r_tempo"></div>
+  <div id="r_fahrt"></div>
+
+  <div class="stats" id="stats">Noch kein Bild geladen.</div>
+  <button class="big" id="download" disabled>G-Code speichern</button>
+
+  <details>
+    <summary>So malst du mit der Datei</summary>
+    <ol>
+      <li>G-Code-Datei auf die SD-Karte kopieren.</li>
+      <li>Ohne Stift <b>Home All</b> drücken, Z etwas hochfahren.</li>
+      <li>Papier festkleben, Z runterfahren, Stift einsetzen, bis er das Papier gerade berührt.</li>
+      <li>Datei starten. Die Höhe beim Start gilt als „Papier“.</li>
+    </ol>
+  </details>
+</aside>
+
+<main>
+  <div class="toolbar">
+    <label class="check"><input type="checkbox" id="showImg" checked> Originalbild zeigen</label>
+    <label class="check"><input type="checkbox" id="showTravel"> Leerfahrten zeigen</label>
+    <span class="info">oben = hinten · unten = vorne · Raster 1 cm</span>
+  </div>
+  <div id="wrap"><canvas id="bed"></canvas><div id="busy">Berechne …</div></div>
+</main>
+
+<script>
+"use strict";
+// ------------------------------------------------------------------ Einstellungen
+const S = {
+  modus: "mitte", schwelle: 128, invert: false, stift: 0.6, minLen: 1,
+  breite: 100, x: 30, y: 30,
+  bettB: 210, bettT: 210, rand: 0, offX: 0, offY: 0,
+  grauAn: false, grauBis: 230, hand: 0,
+  text: "", textFont: "Arial", textH: 10,
+  hub: 3, tiefe: -10, tempo: 1500, fahrt: 3000,
+  showImg: true, showTravel: false,
+};
+const SPEICHER = "stiftplotter-einstellungen";
+try { Object.assign(S, JSON.parse(localStorage.getItem(SPEICHER) || "{}")); } catch (e) {}
+function speichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(S)); } catch (e) {} }
+
+const MODUS_HINT = {
+  mitte: "Für Strichzeichnungen und Schrift: jede Linie wird genau einmal gefahren.",
+  umriss: "Fährt die Ränder der schwarzen Flächen nach (dicke Linien werden zu zwei Linien).",
+  fuellen: "Malt schwarze Flächen mit Linien im Abstand der Stiftbreite aus.",
+};
+
+const $ = id => document.getElementById(id);
+const regler = {};
+function makeRange(key, label, min, max, step, unit, art) {
+  const box = $("r_" + key);
+  box.className = "row";
+  box.innerHTML = `<label>${label}<span class="v"><input type="number" min="${min}" max="${max}" step="${step}">${unit}</span></label>
+                   <input type="range" min="${min}" max="${max}" step="${step}">`;
+  const num = box.querySelector("input[type=number]"), rng = box.querySelector("input[type=range]");
+  const setze = (v, quelle) => {
+    v = parseFloat(v); if (isNaN(v)) return;
+    S[key] = v;
+    if (quelle !== num) num.value = v;
+    if (quelle !== rng) rng.value = v;
+    speichern(); geaendert(art);
+  };
+  num.addEventListener("input", () => setze(num.value, num));
+  num.addEventListener("change", () => { num.value = S[key]; });
+  rng.addEventListener("input", () => setze(rng.value, rng));
+  num.value = rng.value = S[key];
+  regler[key] = { num, rng, setMax(m) { num.max = rng.max = m; }, set(v) { S[key] = v; num.value = rng.value = +v.toFixed(1); } };
+}
+// art: "maske" = alles neu, "pfade" = nur Pfade/Größe neu, "zeichnen" = nur neu zeichnen
+makeRange("schwelle", "Schwellwert (hell/dunkel)", 1, 254, 1, "", "maske");
+makeRange("grauBis", "Grau ausmalen bis (höher = auch hellere Stellen)", 1, 254, 1, "", "maske");
+makeRange("stift","Strichbreite des Stifts", 0.1, 3, 0.1, "mm", "pfade");
+makeRange("minLen", "Kleine Teile weglassen unter", 0, 20, 0.5, "mm", "pfade");
+makeRange("textH", "Höhe der Großbuchstaben", 2, 100, 0.5, "mm", "text");
+makeRange("hand","Handgezeichnet", 0, 100, 1, "%", "pfade");
+makeRange("breite","Breite der Zeichnung", 5, 400, 1, "mm", "pfade");
+makeRange("x", "Abstand von links (X)", 0, 400, 1, "mm", "zeichnen");
+makeRange("y", "Abstand von vorne (Y)", 0, 400, 1, "mm", "zeichnen");
+makeRange("bettB", "Bettbreite (X)", 50, 400, 1, "mm", "bett");
+makeRange("bettT", "Betttiefe (Y)", 50, 400, 1, "mm", "bett");
+makeRange("rand", "Sicherheitsrand", 0, 30, 1, "mm", "zeichnen");
+makeRange("offX", "Versatz X (links/rechts)", -150, 150, 0.5, "mm", "zeichnen");
+makeRange("offY", "Versatz Y (vorne/hinten)", -150, 150, 0.5, "mm", "zeichnen");
+makeRange("tiefe", "Stift-Tiefe beim Malen", -30, 5, 0.5, "mm", "zeichnen");
+makeRange("hub", "Stift anheben um", 0.5, 10, 0.5, "mm", "zeichnen");
+makeRange("tempo", "Zeichentempo", 300, 6000, 100, "mm/min", "zeichnen");
+makeRange("fahrt", "Fahrtempo (Stift oben)", 600, 9000, 100, "mm/min", "zeichnen");
+
+function bettGrenzen() {
+  regler.breite.setMax(Math.max(S.bettB, S.bettT));
+  regler.x.setMax(S.bettB); regler.y.setMax(S.bettT);
+}
+bettGrenzen();
+
+// Modus-Knöpfe
+document.querySelectorAll("#modus button").forEach(b => {
+  b.classList.toggle("on", b.dataset.m === S.modus);
+  b.onclick = () => {
+    S.modus = b.dataset.m; speichern();
+    document.querySelectorAll("#modus button").forEach(x => x.classList.toggle("on", x === b));
+    $("modusHint").textContent = MODUS_HINT[S.modus];
+    geaendert("maske");
+  };
+});
+$("modusHint").textContent = MODUS_HINT[S.modus];
+$("invert").checked = S.invert;
+$("invert").onchange = e => { S.invert = e.target.checked; speichern(); geaendert("maske"); };
+$("grauAn").checked = S.grauAn;
+$("r_grauBis").style.display = S.grauAn ? "" : "none";
+$("grauAn").onchange = e => {
+  S.grauAn = e.target.checked; speichern();
+  $("r_grauBis").style.display = S.grauAn ? "" : "none";
+  geaendert("maske");
+};
+$("showImg").checked = S.showImg;
+$("showImg").onchange = e => { S.showImg = e.target.checked; speichern(); zeichnen(); };
+$("showTravel").checked = S.showTravel;
+$("showTravel").onchange = e => { S.showTravel = e.target.checked; speichern(); zeichnen(); };
+
+// ------------------------------------------------------------------ Bild laden
+const PROC = 900;          // Auflösung für die Berechnung (längste Seite in Pixeln)
+let bild = null;           // { w, h, grau: Uint8Array, canvas, name }
+let basisPfade = [];       // Pfade in Bild-Pixeln (Mittellinie / Umriss)
+let maske = null;
+let grauMaske = null;      // graue Flächen (zum Ausmalen)
+let pfade = [];            // fertige, sortierte Pfade in Bild-Pixeln: { p: [x,y,...], zu }
+
+const drop = $("drop"), fileIn = $("file");
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => fileIn.files[0] && ladeDatei(fileIn.files[0]);
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => e.dataTransfer.files[0] && ladeDatei(e.dataTransfer.files[0]));
+// Auch direkt aufs Bett ziehen
+const wrap = $("wrap");
+wrap.addEventListener("dragover", e => e.preventDefault());
+wrap.addEventListener("drop", e => { e.preventDefault(); e.dataTransfer.files[0] && ladeDatei(e.dataTransfer.files[0]); });
+
+function ladeDatei(datei) {
+  const url = URL.createObjectURL(datei);
+  const img = new Image();
+  img.onload = () => {
+    let w = img.naturalWidth || 800, h = img.naturalHeight || 800;
+    const f = PROC / Math.max(w, h);
+    w = Math.max(2, Math.round(w * f)); h = Math.max(2, Math.round(h * f));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);   // durchsichtig = weiß
+    g.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    bildVonCanvas(c, datei.name.replace(/\.[^.]+$/, "") || "zeichnung", datei.name, {});
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert("Das Bild konnte nicht geladen werden."); };
+  img.src = url;
+}
+
+// opt.mmProPx: feste Größe (für Text), opt.behalten: Position nicht neu zentrieren
+function bildVonCanvas(c, name, anzeige, opt) {
+    let w = c.width, h = c.height;
+    const d = c.getContext("2d").getImageData(0, 0, w, h).data;
+    let grau = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) grau[i] = (d[4 * i] * 299 + d[4 * i + 1] * 587 + d[4 * i + 2] * 114) / 1000;
+    // Weißen Rand abschneiden, damit die Größe der Zeichnung selbst zählt
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+      if (grau[y * w + x] < 230) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    let canvas = c;
+    if (x1 >= 0) {
+      x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2); x1 = Math.min(w - 1, x1 + 2); y1 = Math.min(h - 1, y1 + 2);
+      const nw = x1 - x0 + 1, nh = y1 - y0 + 1;
+      if (nw < w || nh < h) {
+        const ng = new Uint8Array(nw * nh);
+        for (let y = 0; y < nh; y++) ng.set(grau.subarray((y + y0) * w + x0, (y + y0) * w + x0 + nw), y * nw);
+        canvas = document.createElement("canvas"); canvas.width = nw; canvas.height = nh;
+        canvas.getContext("2d").drawImage(c, x0, y0, nw, nh, 0, 0, nw, nh);
+        grau = ng; w = nw; h = nh;
+      }
+    }
+    const alteMitte = opt.behalten && bild ? [S.x + S.breite / 2, S.y + hoeheMm() / 2] : null;
+    bild = { w, h, grau, canvas, name };
+    $("fname").textContent = anzeige;
+    if (opt.mmProPx) {
+      regler.breite.set(Math.min(400, Math.max(5, w * opt.mmProPx)));
+    } else {
+      // Startgröße: passt aufs Bett, höchstens 100 mm breit, zentriert
+      const maxB = Math.min(S.bettB - 2 * S.rand, (S.bettT - 2 * S.rand) * w / h);
+      regler.breite.set(Math.max(5, Math.floor(Math.min(100, maxB))));
+    }
+    if (alteMitte) {   // gleiche Mitte behalten, aber auf dem Bett bleiben
+      const hm = hoeheMm();
+      const klemm = (v, groesse, bett) => groesse + 2 * S.rand > bett ? Math.max(0, (bett - groesse) / 2)
+                                          : Math.min(Math.max(v, S.rand), bett - S.rand - groesse);
+      regler.x.set(klemm(alteMitte[0] - S.breite / 2, S.breite, S.bettB));
+      regler.y.set(klemm(alteMitte[1] - hm / 2, hm, S.bettT));
+    } else zentrieren(false);
+    speichern();
+    geaendert("maske");
+}
+
+// ------------------------------------------------------------------ Text
+const SCHRIFTEN = [
+  // auf jedem Windows-PC
+  "Arial", "Times New Roman", "Georgia", "Verdana", "Trebuchet MS", "Courier New", "Consolas", "Bahnschrift",
+  "Comic Sans MS", "Impact", "Segoe Script", "Segoe Print", "Ink Free", "Gabriola", "Lucida Handwriting",
+  "Brush Script MT", "Monotype Corsiva", "Old English Text MT", "Chiller", "Jokerman", "Stencil", "Algerian",
+  // aus dem Internet (Google Fonts)
+  "Caveat", "Dancing Script", "Pacifico", "Indie Flower", "Permanent Marker", "Shadows Into Light", "Amatic SC",
+  "Satisfy", "Great Vibes", "Sacramento", "Homemade Apple", "Rock Salt", "Kalam", "Patrick Hand", "Lobster",
+  "Bebas Neue", "Righteous", "Special Elite", "Press Start 2P", "Orbitron", "Creepster", "Bangers", "Fredoka",
+  "Playfair Display", "Cinzel", "UnifrakturMaguntia", "Black Ops One", "Monoton",
+];
+let schriftenOk = [];
+
+function schriftDa(name) {   // gibt es die Schrift wirklich? (sonst sähe sie aus wie die Ersatzschrift)
+  const g = document.createElement("canvas").getContext("2d"), probe = "mmmmmwwwwwlliI1@Ag";
+  for (const ersatz of ["monospace", "serif"]) {
+    g.font = `60px ${ersatz}`; const a = g.measureText(probe).width;
+    g.font = `60px "${name}", ${ersatz}`; const b = g.measureText(probe).width;
+    if (a !== b) return true;
+  }
+  return false;
+}
+
+async function schriftenLaden() {
+  const zeit = new Promise(r => setTimeout(r, 5000));
+  await Promise.race([Promise.all(SCHRIFTEN.map(n => document.fonts.load(`40px "${n}"`).catch(() => {}))), zeit]);
+  schriftenOk = SCHRIFTEN.filter(schriftDa);
+  if (!schriftenOk.includes(S.textFont)) S.textFont = schriftenOk[0] || "Arial";
+  schriftenZeigen();
+}
+
+function schriftenZeigen() {
+  const box = $("fonts"), probe = (S.text.split("\n")[0] || "").trim() || "Hallo Welt";
+  box.innerHTML = "";
+  for (const n of schriftenOk) {
+    const b = document.createElement("button");
+    b.className = "font" + (n === S.textFont ? " on" : "");
+    b.innerHTML = `<span class="p"></span><span class="n"></span>`;
+    b.querySelector(".p").textContent = probe;
+    b.querySelector(".p").style.fontFamily = `"${n}"`;
+    b.querySelector(".n").textContent = n;
+    b.title = n;
+    b.onclick = () => {
+      S.textFont = n; speichern();
+      box.querySelectorAll(".font").forEach(x => x.classList.toggle("on", x === b));
+      textBauen();
+    };
+    box.appendChild(b);
+  }
+}
+
+function textBauen() {
+  const t = S.text.replace(/\s+$/, "");
+  if (!t.trim()) return;
+  const zeilen = t.split("\n");
+  const c = document.createElement("canvas"), g = c.getContext("2d");
+  let px = 140, maxW, asc, desc, capH;
+  for (;;) {     // Schriftgröße so wählen, dass das Bild nicht riesig wird
+    g.font = `${px}px "${S.textFont}"`;
+    capH = g.measureText("H").actualBoundingBoxAscent || px * 0.7;
+    maxW = 0; asc = 0; desc = 0;
+    for (const z of zeilen) {
+      const m = g.measureText(z || " ");
+      maxW = Math.max(maxW, m.width, m.actualBoundingBoxLeft + m.actualBoundingBoxRight);
+      asc = Math.max(asc, m.actualBoundingBoxAscent); desc = Math.max(desc, m.actualBoundingBoxDescent);
+    }
+    if (maxW < 3000 || px <= 40) break;
+    px = Math.max(40, Math.floor(px * 3000 / maxW));
+  }
+  const lh = px * 1.35, rand = Math.ceil(px * 0.4);
+  c.width = Math.ceil(maxW + 2 * rand); c.height = Math.ceil(asc + desc + lh * (zeilen.length - 1) + 2 * rand);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#000"; g.font = `${px}px "${S.textFont}"`; g.textBaseline = "alphabetic";
+  zeilen.forEach((z, i) => g.fillText(z, rand, rand + asc + i * lh));
+  const warText = bild && bild.name === "text";
+  bildVonCanvas(c, "text", `Text: ${S.textFont}`, { mmProPx: S.textH / capH, behalten: warText });
+}
+
+$("text").value = S.text;
+let textTimer = null;
+$("text").addEventListener("input", e => {
+  S.text = e.target.value; speichern();
+  clearTimeout(textTimer);
+  textTimer = setTimeout(() => { schriftenZeigen(); textBauen(); }, 400);
+});
+if (document.readyState === "complete") schriftenLaden();
+else window.addEventListener("load", schriftenLaden);
+
+// ------------------------------------------------------------------ Bildverarbeitung
+function machMaske() {
+  const { w, h, grau } = bild, m = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) m[i] = S.invert ? grau[i] > S.schwelle : grau[i] < S.schwelle;
+  for (let x = 0; x < w; x++) { m[x] = 0; m[(h - 1) * w + x] = 0; }   // Rand frei lassen
+  for (let y = 0; y < h; y++) { m[y * w] = 0; m[y * w + w - 1] = 0; }
+  // Kleine Störpunkte entfernen
+  const besucht = new Uint8Array(w * h), stapel = [], teil = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i] || besucht[i]) continue;
+    stapel.push(i); besucht[i] = 1; teil.length = 0;
+    while (stapel.length) {
+      const j = stapel.pop(); teil.push(j);
+      for (const o of [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1]) {
+        const k = j + o;
+        if (m[k] && !besucht[k]) { besucht[k] = 1; stapel.push(k); }
+      }
+    }
+    if (teil.length < 6) for (const j of teil) m[j] = 0;
+  }
+  return m;
+}
+
+function machGrauMaske() {   // mittelhelle Flächen: nicht dunkel genug für Linien, aber nicht weiß
+  const { w, h, grau } = bild;
+  let g = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const v = grau[i];
+    const dunkel = S.invert ? v > S.schwelle : v < S.schwelle;
+    g[i] = !dunkel && (S.invert ? v > 255 - S.grauBis : v < S.grauBis) ? 1 : 0;
+  }
+  // Dünne graue Säume an den Linien-Kanten entfernen (Öffnen mit 5x5)
+  const r = 2;
+  const box = (src, min) => {
+    const a = new Uint8Array(w * h), b = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let v = min ? 1 : 0;
+      for (let d = -r; d <= r; d++) {
+        const xx = x + d, s = xx < 0 || xx >= w ? 0 : src[y * w + xx];
+        if (min) { if (!s) { v = 0; break; } } else if (s) { v = 1; break; }
+      }
+      a[y * w + x] = v;
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let v = min ? 1 : 0;
+      for (let d = -r; d <= r; d++) {
+        const yy = y + d, s = yy < 0 || yy >= h ? 0 : a[yy * w + x];
+        if (min) { if (!s) { v = 0; break; } } else if (s) { v = 1; break; }
+      }
+      b[y * w + x] = v;
+    }
+    return b;
+  };
+  g = box(box(g, true), false);
+  return g;
+}
+
+function verduennen(src, w, h) {   // Zhang-Suen: Linien auf 1 Pixel Breite bringen
+  const a = new Uint8Array(src), weg = [];
+  let geaendert = true;
+  while (geaendert) {
+    geaendert = false;
+    for (let schritt = 0; schritt < 2; schritt++) {
+      weg.length = 0;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        if (!a[i]) continue;
+        const p2 = a[i - w], p3 = a[i - w + 1], p4 = a[i + 1], p5 = a[i + w + 1],
+              p6 = a[i + w], p7 = a[i + w - 1], p8 = a[i - 1], p9 = a[i - w - 1];
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const A = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+        if (A !== 1) continue;
+        if (schritt === 0 ? (p2 && p4 && p6) || (p4 && p6 && p8) : (p2 && p4 && p8) || (p2 && p6 && p8)) continue;
+        weg.push(i);
+      }
+      if (weg.length) { geaendert = true; for (const i of weg) a[i] = 0; }
+    }
+  }
+  return a;
+}
+
+function verfolgen(sk, w, h) {     // 1-Pixel-Linien in Striche umwandeln
+  const N = w * h;
+  // Winzige Reste (z. B. i-Punkte) als kleinen Kreis-Tupfer malen statt wegzulassen
+  const tupfer = [];
+  {
+    sk = new Uint8Array(sk);
+    const gesehen = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      if (!sk[i] || gesehen[i]) continue;
+      const teil = [i], st = [i]; gesehen[i] = 1;
+      while (st.length) {
+        const j = st.pop();
+        for (const o of [-w - 1, -w, -w + 1, -1, 1, w - 1, w, w + 1]) {
+          const k = j + o;
+          if (sk[k] && !gesehen[k]) { gesehen[k] = 1; teil.push(k); st.push(k); }
+        }
+      }
+      if (teil.length > 6) continue;
+      let sx = 0, sy = 0;
+      for (const j of teil) { sx += j % w; sy += (j / w) | 0; sk[j] = 0; }
+      const cx = sx / teil.length, cy = sy / teil.length, r = 1.5, p = [];
+      for (let a = 0; a <= 8; a++) p.push(cx + r * Math.cos(a * Math.PI / 4), cy + r * Math.sin(a * Math.PI / 4));
+      tupfer.push({ p, zu: true, punkt: true });
+    }
+  }
+  const nachbarn = i => {
+    const r = [];
+    const up = sk[i - w], dn = sk[i + w], le = sk[i - 1], re = sk[i + 1];
+    if (up) r.push(i - w); if (dn) r.push(i + w); if (le) r.push(i - 1); if (re) r.push(i + 1);
+    // Schräg nur, wenn es keinen geraden Umweg gibt (sonst Treppen-Dreiecke)
+    if (sk[i - w - 1] && !up && !le) r.push(i - w - 1);
+    if (sk[i - w + 1] && !up && !re) r.push(i - w + 1);
+    if (sk[i + w - 1] && !dn && !le) r.push(i + w - 1);
+    if (sk[i + w + 1] && !dn && !re) r.push(i + w + 1);
+    return r;
+  };
+  const punkte = [];
+  for (let i = 0; i < N; i++) if (sk[i]) punkte.push(i);
+  const nb = new Map();
+  for (const i of punkte) nb.set(i, nachbarn(i));
+  const benutzt = new Set();
+  const key = (a, b) => a < b ? a * N + b : b * N + a;
+  const frei = i => nb.get(i).filter(j => !benutzt.has(key(i, j)));
+  const rang = i => { const d = nb.get(i).length; return d === 1 ? 0 : d > 2 ? 1 : 2; };
+  punkte.sort((a, b) => rang(a) - rang(b));
+
+  const ergebnis = [];
+  for (const start of punkte) {
+    let f;
+    while ((f = frei(start)).length) {
+      const weg = [start];
+      let cur = start, prev = -1;
+      for (;;) {
+        let k = frei(cur);
+        if (!k.length) break;
+        if (prev >= 0 && k.length > 1) {   // möglichst geradeaus
+          const dx = cur % w - prev % w, dy = ((cur / w) | 0) - ((prev / w) | 0);
+          k.sort((a, b) => ((b % w - cur % w) * dx + (((b / w) | 0) - ((cur / w) | 0)) * dy)
+                         - ((a % w - cur % w) * dx + (((a / w) | 0) - ((cur / w) | 0)) * dy));
+        }
+        const n = k[0];
+        benutzt.add(key(cur, n)); weg.push(n); prev = cur; cur = n;
+      }
+      if (weg.length < 3) continue;
+      const p = [];
+      for (const i of weg) p.push(i % w, (i / w) | 0);
+      const zu = weg.length > 3 && Math.abs(p[0] - p[p.length - 2]) <= 1 && Math.abs(p[1] - p[p.length - 1]) <= 1;
+      ergebnis.push(vereinfachen(glaetten(p, zu, 5), 0.3, zu));
+    }
+  }
+  return ergebnis.concat(tupfer);
+}
+
+function glaetten(p, zu, fenster) {
+  const n = p.length / 2;
+  if (n < fenster) return { p, zu };
+  const h = fenster >> 1, out = new Array(p.length);
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0;
+    for (let j = -h; j <= h; j++) {
+      let k = i + j;
+      if (zu) k = ((k % (n - 1)) + (n - 1)) % (n - 1);   // letzter Punkt = erster
+      else k = Math.min(n - 1, Math.max(0, k));
+      sx += p[2 * k]; sy += p[2 * k + 1];
+    }
+    out[2 * i] = sx / fenster; out[2 * i + 1] = sy / fenster;
+  }
+  if (zu) { out[out.length - 2] = out[0]; out[out.length - 1] = out[1]; }
+  else { out[0] = p[0]; out[1] = p[1]; out[out.length - 2] = p[p.length - 2]; out[out.length - 1] = p[p.length - 1]; }
+  return { p: out, zu };
+}
+
+function vereinfachen(pf, eps, zu) {   // Ramer-Douglas-Peucker
+  const p = pf.p, n = p.length / 2;
+  if (n < 3) return pf;
+  const behalten = new Uint8Array(n); behalten[0] = behalten[n - 1] = 1;
+  const stapel = [[0, n - 1]];
+  while (stapel.length) {
+    const [a, b] = stapel.pop();
+    const ax = p[2 * a], ay = p[2 * a + 1], bx = p[2 * b], by = p[2 * b + 1];
+    const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1e-9;
+    let max = -1, idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = L > 1e-6 ? Math.abs(dy * p[2 * i] - dx * p[2 * i + 1] + bx * ay - by * ax) / L
+                         : Math.hypot(p[2 * i] - ax, p[2 * i + 1] - ay);
+      if (d > max) { max = d; idx = i; }
+    }
+    if (max > eps) { behalten[idx] = 1; stapel.push([a, idx], [idx, b]); }
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) if (behalten[i]) out.push(p[2 * i], p[2 * i + 1]);
+  return { p: out, zu };
+}
+
+function umrissPfade(m, w, h) {
+  const r = new Uint8Array(w * h);
+  for (let i = w; i < w * h - w; i++)
+    if (m[i] && (!m[i - 1] || !m[i + 1] || !m[i - w] || !m[i + w])) r[i] = 1;
+  return verfolgen(verduennen(r, w, h), w, h);
+}
+
+function schraffur(m, w, h, abstandPx) {
+  const out = [], innen = abstandPx / 2;
+  let reihe = 0;
+  for (let y = abstandPx / 2; y < h; y += abstandPx, reihe++) {
+    const yy = Math.round(y), stuecke = [];
+    let x = 0;
+    while (x < w) {
+      while (x < w && !m[yy * w + x]) x++;
+      const a = x;
+      while (x < w && m[yy * w + x]) x++;
+      const b = x - 1;
+      if (b >= a && b - a > 2 * innen) stuecke.push([a + innen, b - innen]);
+    }
+    if (reihe % 2) stuecke.reverse();
+    for (const [a, b] of stuecke) out.push({ p: reihe % 2 ? [b, yy, a, yy] : [a, yy, b, yy], zu: false });
+  }
+  return out;
+}
+
+function laenge(p) {
+  let L = 0;
+  for (let i = 2; i < p.length; i += 2) L += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
+  return L;
+}
+
+function sortieren(liste, startX, startY) {   // kurze Leerfahrten: immer den nächsten Strich nehmen
+  const rest = liste.slice(), fertig = [];
+  let cx = startX, cy = startY;
+  while (rest.length) {
+    let best = 0, bestD = Infinity, umdrehen = false;
+    for (let i = 0; i < rest.length; i++) {
+      const p = rest[i].p;
+      const d1 = (p[0] - cx) ** 2 + (p[1] - cy) ** 2;
+      if (d1 < bestD) { bestD = d1; best = i; umdrehen = false; }
+      if (!rest[i].zu) {
+        const d2 = (p[p.length - 2] - cx) ** 2 + (p[p.length - 1] - cy) ** 2;
+        if (d2 < bestD) { bestD = d2; best = i; umdrehen = true; }
+      }
+    }
+    let pf = rest.splice(best, 1)[0];
+    if (umdrehen) {
+      const q = [];
+      for (let i = pf.p.length - 2; i >= 0; i -= 2) q.push(pf.p[i], pf.p[i + 1]);
+      pf = { p: q, zu: pf.zu };
+    }
+    fertig.push(pf);
+    cx = pf.p[pf.p.length - 2]; cy = pf.p[pf.p.length - 1];
+  }
+  return fertig;
+}
+
+// ------------------------------------------------------------------ Ablauf
+let timer = null;
+function geaendert(art) {
+  if (art === "text") { if (bild && bild.name === "text") textBauen(); return; }
+  if (art === "bett") { bettGrenzen(); zeichnen(); return; }
+  if (!bild || art === "zeichnen") { zeichnen(); return; }
+  $("busy").style.display = "block";
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    if (art === "maske") {
+      maske = machMaske();
+      grauMaske = S.grauAn ? machGrauMaske() : null;
+      basisPfade = S.modus === "mitte" ? verfolgen(verduennen(maske, bild.w, bild.h), bild.w, bild.h)
+                                       : umrissPfade(maske, bild.w, bild.h);
+    }
+    pfadeBauen();
+    $("busy").style.display = "none";
+    zeichnen();
+  }, art === "maske" ? 120 : 40);
+}
+
+const mmProPx = () => S.breite / bild.w;
+const hoeheMm = () => bild.h * mmProPx();
+
+function pfadeBauen() {
+  const s = mmProPx();
+  let liste = basisPfade.filter(pf => pf.punkt || laenge(pf.p) * s >= S.minLen);
+  if (S.modus === "fuellen") liste = liste.concat(schraffur(maske, bild.w, bild.h, Math.max(1, S.stift / s)));
+  if (S.grauAn && grauMaske) liste = liste.concat(schraffur(grauMaske, bild.w, bild.h, Math.max(1, S.stift / s)));
+  pfade = sortieren(liste, 0, bild.h);
+  if (S.hand > 0) pfade = pfade.map(menschlich(s));
+}
+
+// Macht die Striche "von Hand": sanftes Wackeln, Überstand an den Enden, Kreise nicht ganz zu.
+// Immer gleicher Zufall (fester Startwert), damit Vorschau und G-Code übereinstimmen.
+function menschlich(s) {
+  let seed = 20240611;
+  const zufall = () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+  const k = S.hand / 100;
+  const ampPx = 0.7 * k / s;          // max. Wackeln: 0,7 mm
+  const schrittPx = 1 / s;            // alle 1 mm ein Punkt
+  return pf => {
+    let p = pf.p.slice();
+    const n = p.length / 2;
+    if (n < 2) return pf;
+    // Enden verlängern (Überstand) bzw. Kreis etwas überlappen lassen
+    const ueber = () => (0.3 + zufall() * 1.7) * k / s;   // bis 2 mm
+    if (pf.zu) {
+      // ein Stück weiter als bis zum Anfang fahren
+      let rest = ueber();
+      for (let i = 1; i < n && rest > 0; i++) {
+        const dx = p[2 * i] - p[2 * i - 2], dy = p[2 * i + 1] - p[2 * i - 1], L = Math.hypot(dx, dy);
+        if (L >= rest) { p.push(p[2 * i - 2] + dx * rest / L, p[2 * i - 1] + dy * rest / L); break; }
+        p.push(p[2 * i], p[2 * i + 1]); rest -= L;
+      }
+    } else {
+      const verl = (ax, ay, bx, by) => { const L = Math.hypot(ax - bx, ay - by) || 1, e = ueber(); return [ax + (ax - bx) / L * e, ay + (ay - by) / L * e]; };
+      const a = verl(p[0], p[1], p[2], p[3]);
+      const b = verl(p[p.length - 2], p[p.length - 1], p[p.length - 4], p[p.length - 3]);
+      p = [a[0], a[1], ...p, b[0], b[1]];
+    }
+    // Gleichmäßig neu verteilen
+    const q = [p[0], p[1]];
+    for (let i = 2; i < p.length; i += 2) {
+      const dx = p[i] - p[i - 2], dy = p[i + 1] - p[i - 1], L = Math.hypot(dx, dy);
+      const m = Math.max(1, Math.ceil(L / schrittPx));
+      for (let j = 1; j <= m; j++) q.push(p[i - 2] + dx * j / m, p[i - 1] + dy * j / m);
+    }
+    // Sanftes Wackeln quer zur Linie (zwei langsame Wellen + etwas Zittern)
+    const f1 = 1 / (25 + zufall() * 30), f2 = 1 / (8 + zufall() * 8);
+    const ph1 = zufall() * 6.283, ph2 = zufall() * 6.283;
+    const nq = q.length / 2, out = new Array(q.length);
+    let weg = 0;
+    for (let i = 0; i < nq; i++) {
+      const a = Math.max(0, i - 1), b = Math.min(nq - 1, i + 1);
+      let tx = q[2 * b] - q[2 * a], ty = q[2 * b + 1] - q[2 * a + 1];
+      const L = Math.hypot(tx, ty) || 1; tx /= L; ty /= L;
+      if (i > 0) weg += Math.hypot(q[2 * i] - q[2 * i - 2], q[2 * i + 1] - q[2 * i - 1]) * s;  // in mm
+      const d = ampPx * (0.65 * Math.sin(weg * f1 * 6.283 + ph1) + 0.3 * Math.sin(weg * f2 * 6.283 + ph2))
+              + ampPx * 0.08 * (zufall() - 0.5);
+      out[2 * i] = q[2 * i] - ty * d; out[2 * i + 1] = q[2 * i + 1] + tx * d;
+    }
+    return { p: out, zu: false };
+  };
+}
+
+function zuMm(px, py) { const s = mmProPx(); return [S.x + px * s, S.y + (bild.h - py) * s]; }
+
+function zentrieren(neu = true) {
+  if (!bild) return;
+  regler.x.set(Math.max(0, (S.bettB - S.breite) / 2));
+  regler.y.set(Math.max(0, (S.bettT - hoeheMm()) / 2));
+  speichern();
+  if (neu) zeichnen();
+}
+$("center").onclick = () => zentrieren();
+$("maxsize").onclick = () => {
+  if (!bild) return;
+  const verf = Math.min(S.bettB - 2 * S.rand, (S.bettT - 2 * S.rand) * bild.w / bild.h);
+  regler.breite.set(Math.floor(verf * 10) / 10);
+  zentrieren(false);
+  geaendert("pfade");
+};
+
+// ------------------------------------------------------------------ Anzeige
+const cv = $("bed"), ctx = cv.getContext("2d");
+let ansicht = { s: 1, ox: 0, oy: 0 };
+function farbe(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+const zuCanvas = (x, y) => [ansicht.ox + x * ansicht.s, ansicht.oy + (S.bettT - y) * ansicht.s];
+
+function zeichnen() {
+  const r = wrap.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, r.width, r.height);
+  const pad = 40;
+  const s = Math.max(0.1, Math.min((r.width - 2 * pad) / S.bettB, (r.height - 2 * pad) / S.bettT));
+  ansicht = { s, ox: (r.width - S.bettB * s) / 2, oy: (r.height - S.bettT * s) / 2 };
+  const { ox, oy } = ansicht, W = S.bettB * s, H = S.bettT * s;
+
+  // Bett + Raster
+  ctx.fillStyle = farbe("--bed"); ctx.fillRect(ox, oy, W, H);
+  for (let mm = 10; mm < Math.max(S.bettB, S.bettT); mm += 10) {
+    ctx.strokeStyle = farbe(mm % 50 ? "--grid" : "--grid2"); ctx.lineWidth = 1;
+    if (mm < S.bettB) { ctx.beginPath(); ctx.moveTo(ox + mm * s + .5, oy); ctx.lineTo(ox + mm * s + .5, oy + H); ctx.stroke(); }
+    if (mm < S.bettT) { ctx.beginPath(); ctx.moveTo(ox, oy + H - mm * s + .5); ctx.lineTo(ox + W, oy + H - mm * s + .5); ctx.stroke(); }
+  }
+  if (S.rand > 0) {
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = farbe("--grid2");
+    ctx.strokeRect(ox + S.rand * s, oy + S.rand * s, W - 2 * S.rand * s, H - 2 * S.rand * s);
+    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = farbe("--grid2"); ctx.lineWidth = 1.5; ctx.strokeRect(ox, oy, W, H);
+  ctx.fillStyle = farbe("--muted"); ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (let mm = 0; mm <= S.bettB; mm += 50) ctx.fillText(mm, ox + mm * s, oy + H + 14);
+  ctx.fillText(`hinten · ${S.bettB} × ${S.bettT} mm`, ox + W / 2, oy - 8);
+  ctx.fillText("vorne", ox + W / 2, oy + H + 28);
+  ctx.textAlign = "right";
+  for (let mm = 50; mm <= S.bettT; mm += 50) ctx.fillText(mm, ox - 6, oy + H - mm * s + 4);
+
+  if (!bild) { statistik(); return; }
+
+  const [bx, by] = zuCanvas(S.x, S.y + hoeheMm());
+  const bw = S.breite * s, bh = hoeheMm() * s;
+  if (S.showImg) { ctx.globalAlpha = 0.22; ctx.drawImage(bild.canvas, bx, by, bw, bh); ctx.globalAlpha = 1; }
+
+  // Leerfahrten
+  if (S.showTravel) {
+    ctx.strokeStyle = farbe("--travel"); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    let [lx, ly] = zuCanvas(0, 0);
+    for (const pf of pfade) {
+      const [x, y] = zuCanvas(...zuMm(pf.p[0], pf.p[1]));
+      ctx.moveTo(lx, ly); ctx.lineTo(x, y);
+      [lx, ly] = zuCanvas(...zuMm(pf.p[pf.p.length - 2], pf.p[pf.p.length - 1]));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Striche
+  ctx.strokeStyle = farbe("--ink"); ctx.lineWidth = Math.max(1, S.stift * s);
+  ctx.lineCap = ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (const pf of pfade) {
+    for (let i = 0; i < pf.p.length; i += 2) {
+      const [x, y] = zuCanvas(...zuMm(pf.p[i], pf.p[i + 1]));
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+  }
+  ctx.stroke();
+
+  const ok = passt();
+  ctx.strokeStyle = farbe(ok ? "--accent" : "--warn"); ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+  ctx.strokeRect(bx, by, bw, bh); ctx.setLineDash([]);
+  statistik();
+}
+
+function grenzen() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const pf of pfade) for (let i = 0; i < pf.p.length; i += 2) {
+    const [x, y] = zuMm(pf.p[i], pf.p[i + 1]);
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  return { x0, y0, x1, y1 };
+}
+function aufPlatte() {
+  const g = grenzen(), r = S.rand;
+  return g.x0 >= r - 1e-6 && g.y0 >= r - 1e-6 && g.x1 <= S.bettB - r + 1e-6 && g.y1 <= S.bettT - r + 1e-6;
+}
+function erreichbar() {   // Kann der Drucker (mit Versatz) überall hinfahren?
+  const g = grenzen();
+  return g.x0 + S.offX >= -1e-6 && g.y0 + S.offY >= -1e-6 && g.x1 + S.offX <= S.bettB + 1e-6 && g.y1 + S.offY <= S.bettT + 1e-6;
+}
+function passt() { return pfade.length > 0 && aufPlatte() && erreichbar(); }
+
+function statistik() {
+  const el = $("stats"), btn = $("download");
+  if (!bild) { el.innerHTML = "Noch kein Bild geladen."; btn.disabled = true; return; }
+  if (!pfade.length) { el.innerHTML = '<span class="warn">Keine Linien gefunden.</span> Schwellwert ändern oder „Farben umdrehen“ probieren.'; btn.disabled = true; return; }
+  let mal = 0, leer = 0, lx = 0, ly = 0;
+  for (const pf of pfade) {
+    const [sx, sy] = zuMm(pf.p[0], pf.p[1]);
+    leer += Math.hypot(sx - lx, sy - ly);
+    mal += laenge(pf.p) * mmProPx();
+    [lx, ly] = zuMm(pf.p[pf.p.length - 2], pf.p[pf.p.length - 1]);
+  }
+  const min = mal / S.tempo + leer / S.fahrt + pfade.length * (2 * S.hub / 600 + 0.004);
+  const g = grenzen(), ok = passt();
+  el.innerHTML = `Größe: <b>${S.breite.toFixed(0)} × ${hoeheMm().toFixed(0)} mm</b><br>
+    Striche: <b>${pfade.length}</b> (Stift setzt so oft auf)<br>
+    Zeichenweg: <b>${(mal / 1000).toFixed(2)} m</b><br>
+    Dauer: ca. <b>${min < 1 ? "unter 1" : Math.round(min)} min</b><br>
+    Bereich: X ${g.x0.toFixed(0)}–${g.x1.toFixed(0)}, Y ${g.y0.toFixed(0)}–${g.y1.toFixed(0)} mm<br>
+    ${ok ? '<span class="ok">✓ Passt aufs Druckbett</span>'
+         : !aufPlatte() ? '<span class="warn">✗ Ragt über das Druckbett hinaus</span>'
+         : '<span class="warn">✗ Wegen des Versatzes kommt der Stift dort nicht hin. Zeichnung etwas Richtung Mitte schieben.</span>'}`;
+  btn.disabled = !ok;
+}
+
+// ------------------------------------------------------------------ Maus: verschieben & zoomen
+let ziehen = null;
+const finger = new Map();   // für Zwei-Finger-Zoom am Handy
+let pinch = null;
+const fingerAbstand = () => { const [a, b] = [...finger.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+cv.addEventListener("pointerdown", e => {
+  if (!bild) return;
+  finger.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  cv.setPointerCapture(e.pointerId);
+  if (finger.size === 2) {   // zweiter Finger: Zoomen statt Verschieben
+    ziehen = null;
+    pinch = { d: fingerAbstand(), breite: S.breite, cx: S.x + S.breite / 2, cy: S.y + hoeheMm() / 2 };
+    return;
+  }
+  const r = cv.getBoundingClientRect();
+  ziehen = { mx: e.clientX - r.left, my: e.clientY - r.top, x: S.x, y: S.y };
+  cv.style.cursor = "grabbing";
+});
+cv.addEventListener("pointermove", e => {
+  if (finger.has(e.pointerId)) finger.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && finger.size === 2) {
+    const neu = Math.min(Math.max(S.bettB, S.bettT), Math.max(5, Math.round(pinch.breite * fingerAbstand() / pinch.d)));
+    if (neu !== Math.round(S.breite)) {
+      regler.breite.set(neu);
+      regler.x.set(Math.max(0, Math.round(pinch.cx - neu / 2)));
+      regler.y.set(Math.max(0, Math.round(pinch.cy - hoeheMm() / 2)));
+      geaendert("pfade");
+    }
+    return;
+  }
+  if (!ziehen) return;
+  const r = cv.getBoundingClientRect();
+  const dx = (e.clientX - r.left - ziehen.mx) / ansicht.s, dy = -(e.clientY - r.top - ziehen.my) / ansicht.s;
+  regler.x.set(Math.round(Math.min(S.bettB, Math.max(0, ziehen.x + dx))));
+  regler.y.set(Math.round(Math.min(S.bettT, Math.max(0, ziehen.y + dy))));
+  zeichnen();
+});
+const fingerWeg = e => {
+  finger.delete(e.pointerId);
+  if (finger.size < 2) pinch = null;
+  ziehen = null; cv.style.cursor = ""; speichern();
+};
+cv.addEventListener("pointerup", fingerWeg);
+cv.addEventListener("pointercancel", fingerWeg);
+cv.addEventListener("wheel", e => {
+  if (!bild) return;
+  e.preventDefault();
+  const alt = S.breite, cx = S.x + alt / 2, cy = S.y + hoeheMm() / 2;
+  const neu = Math.min(Math.max(S.bettB, S.bettT), Math.max(5, Math.round(alt * (e.deltaY < 0 ? 1.05 : 1 / 1.05))));
+  regler.breite.set(neu);
+  regler.x.set(Math.max(0, Math.round(cx - neu / 2)));
+  regler.y.set(Math.max(0, Math.round(cy - hoeheMm() / 2)));
+  speichern(); geaendert("pfade");
+}, { passive: false });
+window.addEventListener("resize", zeichnen);
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", zeichnen);
+
+// ------------------------------------------------------------------ G-Code
+const f2 = n => n.toFixed(2);
+function kopf(titel) {
+  return [
+    `; Stiftplotter: ${titel}`,
+    "; Vor dem Start: Stift muss genau auf dem Papier stehen!",
+    "G21          ; Millimeter",
+    "G90          ; absolute Koordinaten",
+    "G28 X Y      ; nur X und Y nullen",
+    "G92 Z0       ; aktuelle Hoehe = Startpunkt",
+    `; Stift malt auf Z${S.tiefe} (Startpunkt ${S.tiefe < 0 ? "minus " + -S.tiefe + " mm" : "+" + S.tiefe + " mm"})`,
+    `G0 Z${S.tiefe + S.hub} F600`,
+  ];
+}
+function fuss() {
+  return [`G0 Z${S.tiefe + 15} F600  ; Stift weit hoch`, `G0 X0 Y${S.bettT} F${S.fahrt} ; Bett nach vorne`, "M84          ; Motoren aus", ""];
+}
+// Striche (in Drucker-Koordinaten) als G-Code
+function striche(liste) {
+  const z = [];
+  for (const s of liste) {
+    z.push(`G0 X${f2(s[0][0])} Y${f2(s[0][1])} F${S.fahrt}`, `G1 Z${S.tiefe} F600`);
+    for (let i = 1; i < s.length; i++) z.push(`G1 X${f2(s[i][0])} Y${f2(s[i][1])} F${S.tempo}`);
+    z.push(`G0 Z${S.tiefe + S.hub} F600`);
+  }
+  return z;
+}
+function gcode() {
+  const liste = pfade.map(pf => {
+    const s = [];
+    for (let i = 0; i < pf.p.length; i += 2) {
+      const [x, y] = zuMm(pf.p[i], pf.p[i + 1]);
+      s.push([x + S.offX, y + S.offY]);   // Platte -> Drucker
+    }
+    return s;
+  });
+  const z = kopf(bild.name);
+  z.splice(1, 0, `; Bett ${S.bettB} x ${S.bettT} mm, Zeichnung ${S.breite.toFixed(0)} x ${hoeheMm().toFixed(0)} mm, ` +
+                 `${pfade.length} Striche, Versatz X ${S.offX} Y ${S.offY} mm`);
+  return z.concat(striche(liste), fuss()).join("\n");
+}
+function speichereDatei(text, name) {
+  const blob = new Blob([text], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("download").onclick = () => {
+  if (!bild || !passt()) return;
+  speichereDatei(gcode(), bild.name.replace(/[^\w\-]+/g, "_") + ".gcode");
+};
+
+// ------------------------------------------------------------------ Kalibrierung
+// Der Drucker fährt OHNE Versatz zur Bett-Mitte und malt dort ein Kreuz.
+const kalPunkt = () => [S.bettB / 2, S.bettT / 2];
+$("kalDatei").onclick = () => {
+  const [cx, cy] = kalPunkt(), a = 10;
+  const z = kopf("Kalibrier-Kreuz").concat(
+    [`; Kreuz-Mitte bei Drucker-Koordinate X${cx} Y${cy}`],
+    striche([[[cx - a, cy], [cx + a, cy]], [[cx, cy - a], [cx, cy + a]],
+             // kleiner Haken am rechten Ende, damit man links/rechts erkennt
+             [[cx + a - 3, cy + 3], [cx + a, cy], [cx + a - 3, cy - 3]]]),
+    fuss());
+  speichereDatei(z.join("\n"), "kalibrierung.gcode");
+  $("kalInfo").textContent = "Gespeichert in Downloads.";
+};
+$("kalOk").onclick = () => {
+  const mx = parseFloat($("messX").value), my = parseFloat($("messY").value);
+  if (isNaN(mx) || isNaN(my)) { $("kalInfo").textContent = "Bitte beide Werte eintragen."; return; }
+  const [cx, cy] = kalPunkt();
+  regler.offX.set(Math.round((cx - mx) * 2) / 2);
+  regler.offY.set(Math.round((cy - my) * 2) / 2);
+  speichern(); zeichnen();
+  $("kalInfo").textContent = `✓ Versatz X ${S.offX} mm, Y ${S.offY} mm`;
+};
+
+zeichnen();
+</script>
+</body>
+</html>
