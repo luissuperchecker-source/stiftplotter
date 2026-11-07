@@ -67,6 +67,14 @@ textarea { width: 100%; resize: vertical; padding: 7px 9px; border: 1px solid va
 .font.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
 .font .p { display: block; font-size: 21px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .font .n { display: block; font: 11px system-ui, sans-serif; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.glyphs { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 4px; margin-top: 8px; max-height: 260px; overflow-y: auto; }
+.glyphs:empty { display: none; }
+.glyph { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 2px; text-align: center; }
+.glyph canvas { display: block; width: 100%; height: 30px; object-fit: contain; }
+.glyph b { display: block; font: 600 11px system-ui, sans-serif; color: #333; }
+.glyph.fehlt { background: #fdecea; }
+.glyph.fehlt b { color: #c0392b; }
+#handInfo .warn { color: var(--warn); }
 details { margin-top: 18px; font-size: 13px; }
 details summary { cursor: pointer; color: var(--muted); }
 details ol { padding-left: 18px; margin: 8px 0 0; }
@@ -100,6 +108,21 @@ details ol { padding-left: 18px; margin: 8px 0 0; }
   <div id="r_textH"></div>
   <div class="fonts" id="fonts"><span class="hint">Schriftarten werden geladen …</span></div>
   <p class="hint">Auf eine Schrift klicken – der Text erscheint sofort im Bett. Tipp: Für Schrift ist „Ein Strich“ meist am schönsten.</p>
+
+  <h2>Eigene Handschrift als Schrift</h2>
+  <p class="hint" style="margin-top:0">So machst du aus deiner Handschrift eine Schrift:</p>
+  <ol class="kal">
+    <li>Schreib die Zeichen aus der <b>Vorlage</b> auf ein Blatt, Zeile für Zeile, mit <b>etwas Abstand</b> zwischen den Zeichen. Am besten weißes Papier und ein dunkler Stift.</li>
+    <li>Fotografiere das Blatt <b>gerade und hell</b>. Schatten und Heftlinien sind nicht schlimm.</li>
+    <li><button class="btn" id="handFoto">📷 Foto laden</button><input type="file" id="handFile" accept="image/*" hidden></li>
+  </ol>
+  <details id="handVorlageBox">
+    <summary>Vorlage (das sollst du schreiben)</summary>
+    <textarea id="handVorlage" rows="7" spellcheck="false" style="font-family:Consolas,monospace;margin-top:6px"></textarea>
+    <p class="hint">Hast du Zeichen weggelassen oder anders angeordnet, ändere die Vorlage hier genauso. Zeichen mit Leerzeichen trennen, eine Zeile pro geschriebener Zeile.</p>
+  </details>
+  <div id="handInfo" class="hint"></div>
+  <div id="handGlyphs" class="glyphs"></div>
 
   <h2>Umwandlung</h2>
   <div class="seg" id="modus">
@@ -379,13 +402,37 @@ async function schriftenLaden() {
   const zeit = new Promise(r => setTimeout(r, 5000));
   await Promise.race([Promise.all(SCHRIFTEN.map(n => document.fonts.load(`40px "${n}"`).catch(() => {}))), zeit]);
   schriftenOk = SCHRIFTEN.filter(schriftDa);
-  if (!schriftenOk.includes(S.textFont)) S.textFont = schriftenOk[0] || "Arial";
+  await handAusSpeicher();
+  handGlyphenZeigen();
+  if (!schriftenOk.includes(S.textFont) && !(S.textFont === HAND && hand)) S.textFont = schriftenOk[0] || "Arial";
   schriftenZeigen();
 }
 
 function schriftenZeigen() {
   const box = $("fonts"), probe = (S.text.split("\n")[0] || "").trim() || "Hallo Welt";
   box.innerHTML = "";
+  if (hand) {   // eigene Handschrift ganz vorne
+    const b = document.createElement("button");
+    b.className = "font" + (S.textFont === HAND ? " on" : "");
+    b.title = "Meine Handschrift";
+    const vc = document.createElement("canvas");
+    vc.style.cssText = "display:block;height:27px;max-width:100%";
+    const breite = handBreite(probe), sk = 22 / hand.cap;
+    vc.width = Math.max(10, Math.ceil(breite * sk) + 4); vc.height = 27 * 1;
+    const vg = vc.getContext("2d");
+    vg.scale(sk, sk);
+    handZeichnen(vg, probe, 2 / sk, hand.cap * 1.05);
+    if (matchMedia("(prefers-color-scheme: dark)").matches) vc.style.filter = "invert(1)";
+    b.appendChild(vc);
+    const n = document.createElement("span"); n.className = "n"; n.textContent = "✍️ Meine Handschrift";
+    b.appendChild(n);
+    b.onclick = () => {
+      S.textFont = HAND; speichern();
+      box.querySelectorAll(".font").forEach(x => x.classList.toggle("on", x === b));
+      textBauen();
+    };
+    box.appendChild(b);
+  }
   for (const n of schriftenOk) {
     const b = document.createElement("button");
     b.className = "font" + (n === S.textFont ? " on" : "");
@@ -406,6 +453,7 @@ function schriftenZeigen() {
 function textBauen() {
   const t = S.text.replace(/\s+$/, "");
   if (!t.trim()) return;
+  if (S.textFont === HAND) { if (hand) handTextBauen(t); return; }
   const zeilen = t.split("\n");
   const c = document.createElement("canvas"), g = c.getContext("2d");
   let px = 140, maxW, asc, desc, capH;
@@ -429,6 +477,333 @@ function textBauen() {
   const warText = bild && bild.name === "text";
   bildVonCanvas(c, "text", `Text: ${S.textFont}`, { mmProPx: S.textH / capH, behalten: warText });
 }
+
+// ------------------------------------------------------------------ Eigene Handschrift
+const HAND = "__hand__";
+const HAND_SPEICHER = "stiftplotter-handschrift";
+const VORLAGE_STD = [
+  "a b c d e f g h i j k l m",
+  "n o p q r s t u v w x y z",
+  "A B C D E F G H I J K L M",
+  "N O P Q R S T U V W X Y Z",
+  "ä ö ü Ä Ö Ü ß",
+  "0 1 2 3 4 5 6 7 8 9",
+  ". , ! ? - : ( ) + =",
+].join("\n");
+let hand = null;        // { xh, cap, glyphs: { zeichen: { src, w, h, top } } }
+let handBilder = {};    // zeichen -> Image
+let handRoh = null;     // ausgeschnittene Zeichen aus dem letzten Foto (vor der Zuordnung)
+const UNTERLAENGE = new Set([..."gjpqyß,;()"]);   // reichen unter die Grundlinie
+const KLEIN_MITTEL = new Set([..."acemnorsuvwxz"]);
+
+let handVorlage = VORLAGE_STD;
+try { handVorlage = localStorage.getItem(HAND_SPEICHER + "-vorlage") || VORLAGE_STD; } catch (e) {}
+$("handVorlage").value = handVorlage;
+
+async function handAusSpeicher() {
+  try {
+    const d = JSON.parse(localStorage.getItem(HAND_SPEICHER) || "null");
+    if (d && d.glyphs) { hand = d; await handBilderLaden(); }
+  } catch (e) { hand = null; }
+}
+
+async function handBilderLaden() {
+  handBilder = {};
+  await Promise.all(Object.entries(hand.glyphs).map(([z, g]) => new Promise(res => {
+    const im = new Image(); im.onload = im.onerror = res; im.src = g.src; handBilder[z] = im;
+  })));
+}
+
+const median = a => { if (!a.length) return NaN; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+
+function handGlyph(z) {   // Zeichen holen, notfalls Groß-/Kleinbuchstabe
+  if (hand.glyphs[z]) return [hand.glyphs[z], handBilder[z]];
+  for (const a of [z.toLowerCase(), z.toUpperCase()]) if (hand.glyphs[a]) return [hand.glyphs[a], handBilder[a]];
+  return [null, null];
+}
+const handAbstand = () => hand.xh * 0.18, handLeer = () => hand.xh * 0.75;
+
+function handBreite(zeile) {
+  let x = 0;
+  for (const z of zeile) {
+    if (z === " ") { x += handLeer(); continue; }
+    const [g] = handGlyph(z);
+    x += g ? g.w + handAbstand() : handLeer() * 0.6;
+  }
+  return x;
+}
+
+function handZeichnen(g, zeile, x, grundlinie) {   // eine Zeile zeichnen, gibt fehlende Zeichen zurück
+  const fehlt = new Set();
+  for (const z of zeile) {
+    if (z === " ") { x += handLeer(); continue; }
+    const [gl, im] = handGlyph(z);
+    if (!gl) { fehlt.add(z); x += handLeer() * 0.6; continue; }
+    g.drawImage(im, x, grundlinie + gl.top, gl.w, gl.h);
+    x += gl.w + handAbstand();
+  }
+  return fehlt;
+}
+
+function handTextBauen(t) {
+  const zeilen = t.split("\n");
+  const maxW = Math.max(...zeilen.map(handBreite), 10);
+  const sk = Math.min(1.5, 3200 / maxW);   // nicht riesig werden lassen
+  const lh = hand.cap * 2.1, rand = hand.cap * 0.8;
+  const c = document.createElement("canvas");
+  c.width = Math.ceil((maxW + 2 * rand) * sk);
+  c.height = Math.ceil((hand.cap * 1.3 + lh * (zeilen.length - 1) + hand.xh * 0.8 + 2 * rand) * sk);
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.scale(sk, sk);
+  const fehlt = new Set();
+  zeilen.forEach((z, i) => handZeichnen(g, z, rand, rand + hand.cap * 1.3 + i * lh).forEach(f => fehlt.add(f)));
+  const warText = bild && bild.name === "text";
+  bildVonCanvas(c, "text", "Text: Meine Handschrift" + (fehlt.size ? ` (fehlt: ${[...fehlt].join(" ")})` : ""),
+                { mmProPx: S.textH / (hand.cap * sk), behalten: warText });
+}
+
+// ---- Foto auswerten
+$("handFoto").onclick = () => $("handFile").click();
+$("handFile").onchange = () => { const f = $("handFile").files[0]; if (f) handFotoLaden(f); $("handFile").value = ""; };
+
+function handFotoLaden(datei) {
+  $("handInfo").textContent = "Foto wird ausgewertet …";
+  const url = URL.createObjectURL(datei), img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      try { handRoh = handAuswerten(img); handZuordnen(); }
+      catch (e) { $("handInfo").innerHTML = `<span class="warn">${e.message}</span>`; }
+    }, 30);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); $("handInfo").innerHTML = '<span class="warn">Das Foto konnte nicht geladen werden.</span>'; };
+  img.src = url;
+}
+
+function beschriften(m, w, h) {   // zusammenhängende Teile finden (8 Nachbarn)
+  const lab = new Int32Array(w * h), teile = [], st = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i] || lab[i]) continue;
+    const id = teile.length + 1, t = { id, x0: w, y0: h, x1: 0, y1: 0, n: 0 };
+    lab[i] = id; st.push(i);
+    while (st.length) {
+      const j = st.pop(), x = j % w, y = (j / w) | 0;
+      t.n++; if (x < t.x0) t.x0 = x; if (x > t.x1) t.x1 = x; if (y < t.y0) t.y0 = y; if (y > t.y1) t.y1 = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const k = yy * w + xx;
+        if (m[k] && !lab[k]) { lab[k] = id; st.push(k); }
+      }
+    }
+    teile.push(t);
+  }
+  return { lab, teile };
+}
+
+function handAuswerten(img) {
+  // 1) Graustufen in brauchbarer Auflösung
+  let w = img.naturalWidth, h = img.naturalHeight;
+  const f = Math.min(1, 1800 / Math.max(w, h));
+  w = Math.round(w * f); h = Math.round(h * f);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const cg = c.getContext("2d"); cg.fillStyle = "#fff"; cg.fillRect(0, 0, w, h); cg.drawImage(img, 0, 0, w, h);
+  const px = cg.getImageData(0, 0, w, h).data, gr = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) gr[i] = (px[4 * i] * 299 + px[4 * i + 1] * 587 + px[4 * i + 2] * 114) / 1000;
+
+  // 2) Dunkel = deutlich dunkler als die Umgebung (gleicht Schatten und schlechtes Licht aus)
+  const W1 = w + 1, sum = new Float64Array(W1 * (h + 1));
+  for (let y = 0; y < h; y++) { let z = 0; for (let x = 0; x < w; x++) { z += gr[y * w + x]; sum[(y + 1) * W1 + x + 1] = sum[y * W1 + x + 1] + z; } }
+  const r = Math.max(8, Math.round(Math.max(w, h) / 45));
+  let m = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const ya = Math.max(0, y - r), yb = Math.min(h, y + r + 1);
+    for (let x = 0; x < w; x++) {
+      const xa = Math.max(0, x - r), xb = Math.min(w, x + r + 1);
+      const mittel = (sum[yb * W1 + xb] - sum[ya * W1 + xb] - sum[yb * W1 + xa] + sum[ya * W1 + xa]) / ((yb - ya) * (xb - xa));
+      const v = gr[y * w + x];
+      m[y * w + x] = v < mittel * 0.84 && mittel - v > 14 ? 1 : 0;
+    }
+  }
+
+  // 3) Heft-/Karolinien entfernen: sehr breite (oder hohe) Teile, dort nur die dünnen Linien-Pixel löschen
+  let { lab, teile } = beschriften(m, w, h);
+  const istLang = t => t.x1 - t.x0 > w * 0.3 || t.y1 - t.y0 > h * 0.3;
+  const lang = teile.filter(istLang);
+  if (lang.length) {
+    // Lauflängen: wie lang ist die dunkle Strecke waagrecht / senkrecht durch jedes Pixel
+    const runH = new Uint16Array(w * h), runV = new Uint16Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; ) {
+      if (!m[y * w + x]) { x++; continue; }
+      const a = x; while (x < w && m[y * w + x]) x++;
+      for (let j = a; j < x; j++) runH[y * w + j] = x - a;
+    }
+    for (let x = 0; x < w; x++) for (let y = 0; y < h; ) {
+      if (!m[y * w + x]) { y++; continue; }
+      const a = y; while (y < h && m[y * w + x]) y++;
+      for (let j = a; j < y; j++) runV[j * w + x] = y - a;
+    }
+    const h0 = median(teile.filter(t => t.n >= 40 && !istLang(t)).map(t => t.y1 - t.y0 + 1)) || 40;
+    const minLauf = Math.max(20, h0 * 0.9);
+    const weg = [];
+    for (const t of lang) {
+      const quer = t.x1 - t.x0 > w * 0.3;
+      for (let y = t.y0; y <= t.y1; y++) for (let x = t.x0; x <= t.x1; x++) {
+        const i = y * w + x;
+        if (lab[i] !== t.id) continue;
+        // Linien-Pixel: dünn quer zur Linie, aber lang entlang der Linie (Buchstaben bleiben)
+        if (quer ? runV[i] <= 5 && runH[i] >= minLauf : runH[i] <= 5 && runV[i] >= minLauf) weg.push(i);
+      }
+    }
+    for (const i of weg) m[i] = 0;
+    const alt = lab, langIds = new Set(lang.map(t => t.id));
+    ({ lab, teile } = beschriften(m, w, h));
+    // Übrig gebliebene Linien-Stückchen (flach, nur aus Linien-Pixeln) auch noch weg
+    const nurLinie = new Uint8Array(teile.length + 1).fill(1);
+    for (let i = 0; i < lab.length; i++) if (lab[i] && !langIds.has(alt[i])) nurLinie[lab[i]] = 0;
+    teile = teile.filter(t => !(nurLinie[t.id] && Math.min(t.x1 - t.x0, t.y1 - t.y0) <= 8));
+  }
+
+  // 4) Krümel weg, typische Zeichengröße bestimmen
+  teile = teile.filter(t => t.n >= 12);
+  const hMed = median(teile.filter(t => t.n >= 40).map(t => t.y1 - t.y0 + 1));
+  if (!(hMed > 4)) throw new Error("Auf dem Foto wurde keine Schrift gefunden. Ist es scharf und hell genug?");
+  teile = teile.filter(t => {
+    const tw = t.x1 - t.x0 + 1, th = t.y1 - t.y0 + 1;
+    if (th <= 2 && tw >= 8) return false;   // haarfeine waagrechte Linien-Reste
+    return tw < hMed * 8 && th < hMed * 4.5 && Math.max(tw, th) >= hMed * 0.1;
+  });
+  if (!teile.length) throw new Error("Auf dem Foto wurde keine Schrift gefunden.");
+
+  // 5) Zeilen finden (waagrechtes Profil, Zeilen mit Lücken dazwischen)
+  const prof = new Float32Array(h);
+  for (const t of teile) for (let y = t.y0; y <= t.y1; y++) prof[y] += 1;   // wie viele Zeichen reichen in diese Zeile
+  const glatt = new Float32Array(h), k = Math.max(1, Math.round(hMed * 0.12));
+  for (let y = 0; y < h; y++) { let s = 0, n = 0; for (let j = y - k; j <= y + k; j++) if (j >= 0 && j < h) { s += prof[j]; n++; } glatt[y] = s / n; }
+  const maxP = Math.max(...glatt), schwelle = Math.max(0.6, maxP * 0.08);
+  let baender = [];
+  for (let y = 0; y < h; y++) {
+    if (glatt[y] < schwelle) continue;
+    const a = y; while (y < h && glatt[y] >= schwelle) y++;
+    baender.push([a, y - 1]);
+  }
+  // kleine Lücken (i-Punkte, Umlaute) zusammenfassen
+  baender = baender.reduce((out, b) => {
+    const l = out[out.length - 1];
+    if (l && b[0] - l[1] < hMed * 0.35) l[1] = b[1]; else out.push(b.slice());
+    return out;
+  }, []);
+  // zu hohe Bänder (Zeilen berühren sich) an der dünnsten Stelle teilen
+  for (let i = 0; i < baender.length; i++) {
+    const [a, b] = baender[i];
+    if (b - a < hMed * 2.6) continue;
+    let best = -1, bv = Infinity;
+    for (let y = Math.round(a + hMed * 0.8); y <= b - hMed * 0.8; y++) if (glatt[y] < bv) { bv = glatt[y]; best = y; }
+    if (best > 0) { baender.splice(i, 1, [a, best], [best + 1, b]); i--; }
+  }
+  baender = baender.filter(([a, b]) => b - a >= hMed * 0.25);
+
+  // 6) Teile den Zeilen zuordnen, in jeder Zeile zu Zeichen gruppieren
+  const zeilen = baender.map(() => []);
+  for (const t of teile) {
+    const cy = (t.y0 + t.y1) / 2;
+    let best = 0, bd = Infinity;
+    baender.forEach(([a, b], i) => { const d = cy < a ? a - cy : cy > b ? cy - b : 0; if (d < bd) { bd = d; best = i; } });
+    zeilen[best].push(t);
+  }
+  const tol = hMed * 0.06;
+  const ergebnis = zeilen.map(tl => {
+    tl.sort((p, q) => p.x0 - q.x0);
+    const gruppen = [];
+    for (const t of tl) {
+      const g = gruppen[gruppen.length - 1];
+      const klein = Math.max(t.x1 - t.x0, t.y1 - t.y0) < hMed * 0.45;
+      const mitte = (t.x0 + t.x1) / 2;
+      if (g && (t.x0 <= g.x1 + tol || (klein && mitte <= g.x1 + hMed * 0.15))) {
+        g.teile.push(t); g.x0 = Math.min(g.x0, t.x0); g.x1 = Math.max(g.x1, t.x1); g.y0 = Math.min(g.y0, t.y0); g.y1 = Math.max(g.y1, t.y1);
+      } else gruppen.push({ teile: [t], x0: t.x0, x1: t.x1, y0: t.y0, y1: t.y1 });
+    }
+    // jedes Zeichen als Bild ausschneiden (schwarz auf durchsichtig)
+    return gruppen.map(g => {
+      const ids = new Set(g.teile.map(t => t.id)), gw = g.x1 - g.x0 + 1, gh = g.y1 - g.y0 + 1;
+      const cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
+      const cx = cv.getContext("2d"), id = cx.createImageData(gw, gh);
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        if (ids.has(lab[(y + g.y0) * w + x + g.x0])) id.data[4 * (y * gw + x) + 3] = 255;
+      }
+      cx.putImageData(id, 0, 0);
+      return { cv, x0: g.x0, y0: g.y0, y1: g.y1, w: gw, h: gh };
+    });
+  }).filter(z => z.length);
+  if (!ergebnis.length) throw new Error("Auf dem Foto wurde keine Schrift gefunden.");
+  return { zeilen: ergebnis, hMed };
+}
+
+// Ausgeschnittene Zeichen den Zeichen der Vorlage zuordnen und als Schrift speichern
+function handZuordnen() {
+  if (!handRoh) return;
+  const vorlage = handVorlage.split("\n").map(z => z.trim().split(/\s+/).filter(Boolean).map(t => t[0])).filter(z => z.length);
+  const zuord = [], hinweise = [];
+  const n = Math.min(vorlage.length, handRoh.zeilen.length);
+  if (handRoh.zeilen.length !== vorlage.length)
+    hinweise.push(`Im Foto ${handRoh.zeilen.length} Zeilen gefunden, die Vorlage hat ${vorlage.length}.`);
+  for (let i = 0; i < n; i++) {
+    const v = vorlage[i], gl = handRoh.zeilen[i];
+    if (v.length !== gl.length) hinweise.push(`Zeile ${i + 1}: ${gl.length} Zeichen gefunden statt ${v.length}.`);
+    const paare = [];
+    for (let j = 0; j < Math.min(v.length, gl.length); j++) paare.push({ z: v[j], g: gl[j] });
+    // Grundlinie der Zeile: wo die Zeichen ohne Unterlänge aufhören
+    const ohne = paare.filter(p => !UNTERLAENGE.has(p.z) && !"-'\"".includes(p.z));
+    const grund = median((ohne.length ? ohne : paare).map(p => p.g.y1));
+    for (const p of paare) zuord.push({ ...p, grund });
+  }
+  if (!zuord.length) { $("handInfo").innerHTML = '<span class="warn">Keine Zeichen zugeordnet.</span>'; return; }
+  let xh = median(zuord.filter(p => KLEIN_MITTEL.has(p.z)).map(p => p.g.h));
+  if (!(xh > 0)) xh = handRoh.hMed * 0.7;
+  let cap = median(zuord.filter(p => /[A-Z0-9]/.test(p.z)).map(p => p.g.h));
+  if (!(cap > 0)) cap = xh * 1.5;
+  const sk = Math.min(1, 48 / xh), glyphs = {};
+  for (const p of zuord) {
+    const w = Math.max(1, Math.round(p.g.w * sk)), h = Math.max(1, Math.round(p.g.h * sk));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const cg = cv.getContext("2d"); cg.imageSmoothingQuality = "high"; cg.drawImage(p.g.cv, 0, 0, w, h);
+    glyphs[p.z] = { src: cv.toDataURL("image/png"), w, h, top: (p.g.y0 - p.grund) * sk };
+  }
+  hand = { xh: xh * sk, cap: cap * sk, glyphs };
+  try { localStorage.setItem(HAND_SPEICHER, JSON.stringify(hand)); } catch (e) { hinweise.push("Konnte die Schrift nicht dauerhaft speichern (Speicher voll)."); }
+  handBilderLaden().then(() => {
+    handGlyphenZeigen();
+    S.textFont = HAND; speichern();
+    schriftenZeigen();
+    if (!S.text.trim()) { S.text = "Hallo Welt"; $("text").value = S.text; }
+    textBauen();
+  });
+  $("handInfo").innerHTML = `✓ ${Object.keys(glyphs).length} Zeichen übernommen. „Meine Handschrift“ ist jetzt bei den Schriften ausgewählt.` +
+    (hinweise.length ? `<br><span class="warn">${hinweise.join("<br>")}</span><br>Tipp: Vorlage oben anpassen oder Zeichen mit mehr Abstand schreiben.` : "");
+}
+
+function handGlyphenZeigen() {
+  const box = $("handGlyphs"); box.innerHTML = "";
+  if (!hand) return;
+  const alle = handVorlage.split(/\s+/).filter(Boolean).map(t => t[0]);
+  for (const z of alle) {
+    const d = document.createElement("div"), gl = hand.glyphs[z];
+    d.className = "glyph" + (gl ? "" : " fehlt");
+    if (gl) { const im = handBilder[z].cloneNode(); im.style.cssText = "display:block;width:100%;height:30px;object-fit:contain"; d.appendChild(im); }
+    else { const s = document.createElement("div"); s.style.height = "30px"; d.appendChild(s); }
+    const b = document.createElement("b"); b.textContent = z; d.appendChild(b);
+    box.appendChild(d);
+  }
+}
+
+let vorlageTimer = null;
+$("handVorlage").addEventListener("input", e => {
+  handVorlage = e.target.value || VORLAGE_STD;
+  try { localStorage.setItem(HAND_SPEICHER + "-vorlage", handVorlage); } catch (er) {}
+  clearTimeout(vorlageTimer);
+  vorlageTimer = setTimeout(() => { if (handRoh) handZuordnen(); else handGlyphenZeigen(); }, 500);
+});
 
 $("text").value = S.text;
 let textTimer = null;
@@ -720,7 +1095,18 @@ const hoeheMm = () => bild.h * mmProPx();
 
 function pfadeBauen() {
   const s = mmProPx();
-  let liste = basisPfade.filter(pf => pf.punkt || laenge(pf.p) * s >= S.minLen);
+  const istText = bild.name === "text";   // Text hat kein Rauschen: kurze Stücke sind Punkte
+  let liste = basisPfade.map(pf => istText && !pf.punkt && laenge(pf.p) * s < S.minLen ? { ...pf, punkt: true } : pf)
+    .filter(pf => pf.punkt || laenge(pf.p) * s >= S.minLen).map(pf => {
+    if (!pf.punkt) return pf;
+    // Punkte (i-Punkt, Satzpunkt) als kleiner Kringel mit mind. 0,35 mm Radius
+    let cx = 0, cy = 0; const n = pf.p.length / 2;
+    for (let i = 0; i < n; i++) { cx += pf.p[2 * i]; cy += pf.p[2 * i + 1]; }
+    cx /= n; cy /= n;
+    const r = Math.max(1.5, 0.35 / s), p = [];
+    for (let a = 0; a <= 12; a++) p.push(cx + r * Math.cos(a * Math.PI / 6), cy + r * Math.sin(a * Math.PI / 6));
+    return { p, zu: true, punkt: true };
+  });
   if (S.modus === "fuellen") liste = liste.concat(schraffur(maske, bild.w, bild.h, Math.max(1, S.stift / s)));
   if (S.grauAn && grauMaske) liste = liste.concat(schraffur(grauMaske, bild.w, bild.h, Math.max(1, S.stift / s)));
   pfade = sortieren(liste, 0, bild.h);
